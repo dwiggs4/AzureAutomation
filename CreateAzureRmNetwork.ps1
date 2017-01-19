@@ -570,23 +570,40 @@ $vngConnections = Import-Excel -inputObject .\AzureRmNetwork.xlsx `
 
 foreach ($lng in $lngs)
 {
-    $local = New-AzureRmLocalNetworkGateway -Name $lng.name `
-                                            -ResourceGroupName $lng.resourceGroupName `
-                                            -Location $lng.location `
-                                            -GatewayIpAddress $lng.gatewayIpAddress `
-                                            -AddressPrefix $lng.addressPrefix | Out-Null
+    $lngName - $lng.name
+    $lngGatewayIpAddress = $lng.gatewayIpAddress
+    $lngAddressPrefix = $lng.addressPrefix
+    Write-Progress -Activity "Creating site-to-site connections.." `
+                   -Status "Working on connection to $lngGatewayIpAddress / $lngAddressPrefix" `
+                   -PercentComplete ((($lngs.IndexOf($lng)) / $lngs.Count) * 100) 
+    $localNetworkGateway = New-AzureRmLocalNetworkGateway -Name $lng.name `
+                                                          -ResourceGroupName $lng.resourceGroupName `
+                                                          -Location $lng.location `
+                                                          -GatewayIpAddress $lng.gatewayIpAddress `
+                                                          -AddressPrefix $lng.addressPrefix | Out-Null
 
-    New-AzureRmVirtualNetworkGatewayConnection -Name azbGCNazbVNTBIEnvironment-azbLNGDENFW `
-                                               -ResourceGroupName azbRSGNetwork `
-                                               -Location 'West US' `
-                                               -VirtualNetworkGateway1 $gateway1 `
-                                               -LocalNetworkGateway2 $local `
-                                               -ConnectionType IPsec `
-                                               -RoutingWeight 10 `
-                                               -SharedKey 'abc123' | Out-Null
-
-
+    $vngConnection = $vngConnections | Where-Object {$_.localNetworkGateway2 -like "$lngName"}
+    $virtualNetworkGateway = $vngs | Where-Object {$_.name -like $lng.azureVng}
+    $viritulNetworkGateway = Get-AzureRmVirtualNetworkGateway -Name $virtualNetworkGateway.name `
+                                                              -ResourceGroupName $virtualNetworkGateway.resourceGroupName `
+    $secureString = ConvertTo-SecureString –String $vngConnection.sharedSecret `
+                                           –AsPlainText `
+                                           -Force                                                          
+    
+    New-AzureRmVirtualNetworkGatewayConnection -Name $vngConnection.name `
+                                               -ResourceGroupName $vngConnection.resourceGroupName `
+                                               -Location $vngConnection.location `
+                                               -VirtualNetworkGateway1 $virtualNetworkGateway `
+                                               -LocalNetworkGateway2 $localNetworkGateway `
+                                               -ConnectionType $vngConnection.connectionType `
+                                               -RoutingWeight $vngConnection.routingWeight `
+                                               -SharedKey $secureString | Out-Null
 }
+
+Write-Progress -Activity "Creating site-to-site connections.." `
+               -Status "Done" `
+               -PercentComplete 100 `
+               -Completed
 
 Write-Host 'The virtual network, subnets, and network security groups and rules have been created.'
 Write-Host 'The next step is to create any needed VMs in the environment.'

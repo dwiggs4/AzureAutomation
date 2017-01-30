@@ -1,8 +1,11 @@
 #Load the Excel Assembly, Locally or from GAC
-try {
+try 
+{
     Add-Type -ASSEMBLY "Microsoft.Office.Interop.Excel"  | out-null
-}catch {
-#If the assembly can't be found this will load the most recent version in the GAC
+}
+catch 
+{
+    #If the assembly can't be found this will load the most recent version in the GAC
     [Reflection.Assembly]::LoadWithPartialname("Microsoft.Office.Interop.Excel") | out-null
 }
 

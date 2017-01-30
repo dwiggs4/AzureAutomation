@@ -694,7 +694,7 @@ if($lngs -ne $null -and $vngConnections -ne $null)
 else
 {
     Write-Host ''
-    'Did not find virtual gateway connections to establish site-to-site VPNs.'
+    Write-Host 'Did not find virtual gateway connections to establish site-to-site VPNs.'
 }
 
 Write-Host 'The virtual network and sub-components have been created.'

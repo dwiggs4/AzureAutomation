@@ -21,12 +21,18 @@ catch [InvalidOperationException]
     Login-AzureRmAccount | Out-Null
 }
 
+# Select appropriate Azure subscription
+Write-Host ''
+Write-Host 'Please select a subscription for the new VM.'
+$objSubscription = SelectAzureRmSubscription
+
 $resourceGroups = Import-Excel -inputObject .\AzureRmNetwork.xlsx `
                                -SheetName "Resource Groups" `
                                -closeExcel
 
 if($resourceGroups -ne $null)
 {
+    Write-Host ''
     Write-Host 'Will now create the resource group(s).'
 
 
@@ -71,7 +77,7 @@ if($storageAccounts -ne $null)
         # If kind is like blob storage more properties are required
         if ($storageAccount.kind -like "BlobStorage")
         {
-            New-AzureRmStorageAccount -Name $storageAccount.storageAccountName `
+            New-AzureRmStorageAccount -Name $storageAccount.name `
                                       -ResourceGroupName $storageAccount.resourceGroupName `
                                       -SkuName $storageAccount.skuName `
                                       -Location $storageAccount.location `
@@ -108,6 +114,16 @@ $subnets = Import-Excel -inputObject .\AzureRmNetwork.xlsx `
 
 if($subnets -ne $null)
 {
+    try 
+    {
+        Add-Type -ASSEMBLY 'Microsoft.Azure.Commands.Network.Models.PSSubnet'  | out-null
+    }
+    catch 
+    {
+        # If the assembly can't be found this will load the most recent version in the GAC
+        [Reflection.Assembly]::LoadWithPartialname('Microsoft.Azure.Commands.Network.Models.PSSubnet') | Out-Null
+    }
+    
     Write-Host ''
     Write-Host 'Will now create the subnet(s).'
   
@@ -385,10 +401,13 @@ else
     Write-Host 'Did not find any virtual network gateways to create.'
 }
 
-if($vnets.Count -gt 1)
+if($vnets.Count -gt 1 -and $gatewayVnetName -ne $null)
 {
     Write-Host ''
     Write-Host 'Will now create network peering between VNETs.'
+    Write-Host ''
+    Write-Host 'Note that a hub/spoke archicture is configured with the VNET containing'
+    Write-Host 'the virtual network gateway acting as the hub.'
 
     # Configure peering between all VNETs - VNET with gateway to on-premises 
     # address space acts as hub. Note that VNETs without a gatway are not able
@@ -424,7 +443,10 @@ if($vnets.Count -gt 1)
 else
 {
     Write-Host ''
-    Write-Host 'Did not find enough VNETs to create a peering mesh.'
+    Write-Host 'Did not find enough VNETs or a VNET with a virtual network gateway'
+    Write-Host 'to create a hub/spoke archicture with virtual network gateway acting'
+    Write-Host 'as the hub. Note that peering can still be configured to connect VNETs,'
+    Write-Host 'but it must be configured manually.' 
 }
 
 $lngs = Import-Excel -inputObject .\AzureRmNetwork.xlsx `

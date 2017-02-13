@@ -45,7 +45,7 @@ function ObjectPicker($arrObjects)
                 Write-Host $intNumber":`t"$($objObject.ResourceGroupName)
                 $intNumber++
             }
-            Write-Host $intNumber": Create and select new Resource Group"
+            Write-Host $intNumber":`tCreate and select new Resource Group"
         }
         ElseIf ($arrObjects[0].GetType().Name -eq "PSAzureSubscription")
         {
@@ -66,7 +66,16 @@ function ObjectPicker($arrObjects)
                 Write-Host $intNumber":`t"$($objObject.StorageAccountName)
                 $intNumber++
             }
-            Write-Host $intNumber": Create and select new Storage Account"
+            Write-Host $intNumber":`tCreate and select new Storage Account"
+        }
+        ElseIf ($arrObjects[0].GetType().Name -eq "PSSubnet")
+        {
+            # Write object list to screen
+            Foreach ($objObject in $arrObjects)
+            {
+                Write-Host $intNumber":`t"$($objObject.Name)
+                $intNumber++
+            }
         }
         ElseIf ($arrObjects[0].GetType().Name -eq "PSNetworkInterface")
         {
@@ -112,7 +121,6 @@ function ObjectPicker($arrObjects)
                 Write-Host $intNumber":`t"$($objObject.Name)
                 $intNumber++
             }
-            Write-Host $intNumber":`tCreate and select new" $arrObjects[0].GetType().Name
         }     
     }    
     
@@ -121,8 +129,7 @@ function ObjectPicker($arrObjects)
     {
         Write-Host ''
         $intSelection = Read-Host -Prompt 'Enter the number of the desired option'
-        $intCurrentNumber = $intNumber - 1 
-        [regex]$regSelection = "\b[1-$intCurrentNumber]\b"
+        $intCurrentNumber = $intNumber - 1
         
         # Check to see if new object is required
         If ($intSelection -eq $intNumber -and (($arrObjects[0].GetType().Name -eq 'PSResourceGroup') -or ($arrObjects[0].GetType().Name -eq 'PSStorageAccount') -or ($arrObjects[0].GetType().Name -eq 'PSAvailabilitySet')))
@@ -144,14 +151,19 @@ function ObjectPicker($arrObjects)
                 }
             }
         }
-        ElseIf ($intSelection -notmatch $regSelection)
+        # Subnets are zero-indexed so return the selection number minus 1
+        ElseIf ($arrObjects[0].GetType().Name -eq 'PSSubnet')
+        {
+             return ($intSelection-1)    
+        }
+        ElseIf ($intSelection -notin 1..$intCurrentNumber)
         {
             Write-Host ''
             Write-Host 'Error in confirming selection.' -ForegroundColor Red
             Write-Host 'Please try again.' -ForegroundColor Red
             Write-Host ''
             ObjectPicker($arrObjects)
-        }
+        }        
         Else
         {
             Return $arrObjects[$intSelection-1]
@@ -239,7 +251,21 @@ function StringPicker($arrStrings)
     # Prompt for user input
     Write-Host
     $intSelection = Read-Host -Prompt 'Enter the number of the desired option'
-    Return $arrStrings[$intSelection-1]
+    
+    $intCurrentNumber = $intNumber - 1 
+    if ($intSelection -notin 1..$intCurrentNumber)
+    {
+        Write-Host ''
+        Write-Host 'Error in confirming selection.' -ForegroundColor Red
+        Write-Host 'Please try again.' -ForegroundColor Red
+        Write-Host ''
+        StringPicker($arrStrings)
+    }
+    
+    else
+    {
+        Return $arrStrings[$intSelection-1]
+    }
 }
 
 <#

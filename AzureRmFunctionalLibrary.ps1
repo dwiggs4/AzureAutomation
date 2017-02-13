@@ -1,4 +1,4 @@
-﻿# This is a 'standard' set of functions to be used and re-used in scripts.
+# This is a 'standard' set of functions to be used and re-used in scripts.
 # If you add a function, please document what it does, and maybe where it's useful
 
 <#
@@ -160,28 +160,31 @@ Passes "$arrVMs" to the function and displays all objects in that array.
 #>
 function ObjectLister($arrObjects)
 {
-    # Initialize iterator
-    $intNumber = 1
+    if($arrObjects -ne $null)
+    {
+        # Initialize iterator
+        $intNumber = 1
 
-    # Check for object type
-    If ($arrObjects[0].GetType().Name -eq "PSResourceGroup")
-    {
-        # Write object list to screen
-        Foreach ($objObject in $arrObjects)
-            {
-                Write-Host $intNumber":`t"$($objObject.ResourceGroupName)
-                $intNumber++
-            }
+        # Check for object type
+        If ($arrObjects[0].GetType().Name -eq "PSResourceGroup")
+        {
+            # Write object list to screen
+            Foreach ($objObject in $arrObjects)
+                {
+                    Write-Host $intNumber":`t"$($objObject.ResourceGroupName)
+                    $intNumber++
+                }
+        }
+        Else
+        {
+            # Write object list to screen
+            Foreach ($objObject in $arrObjects)
+                {
+                    Write-Host $intNumber":`t"$($objObject.Name)
+                    $intNumber++
+                }
+        }     
     }
-    Else
-    {
-        # Write object list to screen
-        Foreach ($objObject in $arrObjects)
-            {
-                Write-Host $intNumber":`t"$($objObject.Name)
-                $intNumber++
-            }
-    }     
 }
 
 <#
@@ -234,7 +237,7 @@ Displays a list of Azure RM subscriptions to which the currently logged in user 
 function SelectAzureRmSubscription()
 {
     # Pick subscription
-    $objSubscription = ObjectPicker(Get-AzureRmSubscription)
+    $objSubscription = ObjectPicker(Get-AzureRmSubscription -WarningAction Ignore)
 
     Select-AzureRmSubscription -SubscriptionId $objSubscription.SubscriptionId
     Return $objSubscription

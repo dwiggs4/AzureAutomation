@@ -47,6 +47,17 @@ function ObjectPicker($arrObjects)
             }
             Write-Host $intNumber": Create and select new Resource Group"
         }
+        ElseIf ($arrObjects[0].GetType().Name -eq "PSAzureSubscription")
+        {
+            # Write object list to screen
+            Foreach ($objObject in $arrObjects)
+            {
+                Write-Host $intNumber":`t"$($objObject.SubscriptionName)
+                $intNumber++
+                # Don't $intNumber++ so that regex tester works below
+                # You can't create new subscriptions from PowerShel
+            }  
+        }
         ElseIf ($arrObjects[0].GetType().Name -eq "PSStorageAccount")
         {
             # Write object list to screen
@@ -110,9 +121,11 @@ function ObjectPicker($arrObjects)
     {
         Write-Host ''
         $intSelection = Read-Host -Prompt 'Enter the number of the desired option'
-
+        $intCurrentNumber = $intNumber - 1 
+        [regex]$regSelection = "\b[1-$intCurrentNumber]\b"
+        
         # Check to see if new object is required
-        If ($intSelection -eq $intNumber)
+        If ($intSelection -eq $intNumber -and (($arrObjects[0].GetType().Name -eq 'PSResourceGroup') -or ($arrObjects[0].GetType().Name -eq 'PSStorageAccount') -or ($arrObjects[0].GetType().Name -eq 'PSAvailabilitySet')))
         {
             # A new object is required
             Switch ($arrObjects[0].GetType().Name)
@@ -130,6 +143,14 @@ function ObjectPicker($arrObjects)
                     Return CreateAvailabilitySet
                 }
             }
+        }
+        ElseIf ($intSelection -notmatch $regSelection)
+        {
+            Write-Host ''
+            Write-Host 'Error in confirming selection.' -ForegroundColor Red
+            Write-Host 'Please try again.' -ForegroundColor Red
+            Write-Host ''
+            ObjectPicker($arrObjects)
         }
         Else
         {

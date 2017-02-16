@@ -52,9 +52,13 @@ $strSitePrefix = GetSitePrefix
 
 # Get virtual machine hostname
 Write-Host ''
-Write-Host 'The following virtual machines exist in this subscription:'
-ObjectLister(Get-AzureRmVm)
-Write-Host ''
+$vms = Get-AzureRmVM
+if ($vms -ne $null)
+{
+    Write-Host 'The following virtual machines exist in this subscription:'
+    ObjectLister(Get-AzureRmVm)
+    Write-Host ''
+}
 
 $strAzureVMName = GetVmHostname($strVmType)
 $strVMHostname = $strAzureVMName.Substring(6)
@@ -64,14 +68,14 @@ $strVMHostname = $strAzureVMName.Substring(6)
 $arrNICs = @()
 
 # Get or create primary NIC
-Do
+do
 {
     Write-Host ''
     $strUseExistingPrimaryNIC = Read-Host -Prompt 'Use an existing NIC? (Y/N)'
 }
-Until ($strUseExistingPrimaryNIC.ToLower() -eq 'y' -or $strUseExistingPrimaryNIC.ToLower() -eq 'n')
+until ($strUseExistingPrimaryNIC.ToLower() -eq 'y' -or $strUseExistingPrimaryNIC.ToLower() -eq 'n')
 
-If ($strUseExistingPrimaryNIC.ToLower() -eq 'y')
+if ($strUseExistingPrimaryNIC.ToLower() -eq 'y')
 {
     # Get existing NIC
     Write-Host ''
@@ -88,7 +92,7 @@ If ($strUseExistingPrimaryNIC.ToLower() -eq 'y')
                    (($objPrimaryNIC.IpConfigurations.Subnet.Id).Split("/"))[-1], `
                    $objPrimaryNIC.IpConfigurations.PrivateIPAddress)
 }
-Else
+else
 {
     # Get virtual network
     Write-Host ''
@@ -108,16 +112,16 @@ Else
     # Get private IP and DNS domain
     $strPrimarySubnetAddressPrefix = $objPrimaryVirtualNetwork.Subnets[$intPrimarySubnetIndex].AddressPrefix
     Write-Host ''
-    Write-Host 'The address range for the selected subnet is' -NoNewline; Write-Host "$strPrimarySubnetAddressPrefix" -ForegroundColor Yellow
-    $strPrimaryPrivateIPAddress = Read-Host -Prompt 'Provide the Virtual Machine private IP Address (xxx.xxx.xxx.xxx format)'
+    Write-Host 'The address range for the selected subnet is ' -NoNewline; Write-Host "$strPrimarySubnetAddressPrefix" -ForegroundColor Yellow
+    $strPrimaryPrivateIPAddress = Read-Host -Prompt 'Please provide the Virtual Machine private IP Address (xxx.xxx.xxx.xxx format)'
     
     do
     {
         $addPublicIp = Read-Host -Prompt 'Would you like to add a public IP address to the Virtual Machine? (Y/N)'
     }
-    Until ($addPublicIp.ToLower() -eq 'y' -or $addPublicIp.ToLower() -eq 'n')
+    until ($addPublicIp.ToLower() -eq 'y' -or $addPublicIp.ToLower() -eq 'n')
 
-    If ($addPublicIp -eq 'y')
+    if ($addPublicIp -eq 'y')
     {
         Write-Host 'Creating public IP address...'
         # Conform to naming convention
@@ -143,7 +147,7 @@ Else
 
 $intNICIndex = 2
 # Get additional NIC details
-Do
+do
 {
     Write-Host ''
     Write-Host 'Larger size VMs can support more than a single NIC.'
@@ -155,16 +159,16 @@ Do
     $strAddAnotherNIC = Read-Host -Prompt 'Add an additional NIC to the new VM? (Y/N)'
     $strAddAnotherNIC = $strAddAnotherNIC.ToLower()
     
-    If ($strAddAnotherNIC -eq 'y')
+    if ($strAddAnotherNIC -eq 'y')
     {
-        Do
+        do
         {
             Write-Host ''
             $strUseExistingNIC = Read-Host -Prompt 'Use an existing NIC? (Y/N)'
         }
-        Until ($strUseExistingNIC.ToLower() -eq 'y' -or $strUseExistingNIC.ToLower() -eq 'n')
+        until ($strUseExistingNIC.ToLower() -eq 'y' -or $strUseExistingNIC.ToLower() -eq 'n')
 
-        If ($strUseExistingNIC.ToLower() -eq 'y')
+        if ($strUseExistingNIC.ToLower() -eq 'y')
         {
             # Get existing NIC
             Write-Host ''
@@ -182,7 +186,7 @@ Do
                            $objNIC.IpConfigurations.PrivateIPAddress)
             $intNICIndex++
         }
-        Else
+        else
         {
             # Get virtual network
             Write-Host ''
@@ -207,7 +211,7 @@ Do
             $strPrimaryPrivateIPAddress = Read-Host -Prompt 'Provide the NIC private IP Address (xxx.xxx.xxx.xxx format)'
             $addPublicIp = Read-Host -Prompt 'Would you like to add a public IP address to the NIC? (Y/N)'
 
-            If ($addPublicIp -eq 'y')
+            if ($addPublicIp -eq 'y')
             {
                 $strPublicIpName = "$strSitePrefix" + 'PIP' + "$strPrimaryNICName"
                 $objPublicIp = New-AzureRmPublicIpAddress -Name $strPublicIpName `
@@ -231,18 +235,26 @@ Do
         }
     }
 }
-Until ($strAddAnotherNIC -ne 'y')
+until ($strAddAnotherNIC -ne 'y')
 
 # Set Availability Set
 Write-Host ''
 $strAddToAvailabilitySet = Read-Host -Prompt 'Add this VM to an availability set (Y/N)'
 $strAddToAvailabilitySet = $strAddToAvailabilitySet.ToLower()
-If ($strAddToAvailabilitySet -eq 'y')
+if ($strAddToAvailabilitySet -eq 'y')
 {
-    Write-Host ''
-    Write-Host 'Please select an availability set for the new VM.'
-    Write-Host 'The following availability sets are available in the same resource group as the new VM:'
-    $objAvailabilitySet = ObjectPicker(Get-AzureRmAvailabilitySet -ResourceGroupName $objResourceGroup.ResourceGroupName)
+    $objAvailabilitySet = Get-AzureRmAvailabilitySet -ResourceGroupName $objResourceGroup.ResourceGroupName
+    if ($objAvailabilitySet -ne $null)
+    {
+        Write-Host ''
+        Write-Host 'Please select an availability set for the new VM.'
+        Write-Host 'The following availability sets are available in the same resource group as the new VM:'
+        $objAvailabilitySet = ObjectPicker(Get-AzureRmAvailabilitySet -ResourceGroupName $objResourceGroup.ResourceGroupName)
+    }
+    else
+    {
+        CreateAvailabilitySet
+    }
 }
 
 # Specify size
@@ -253,20 +265,20 @@ $arrVMsizes = Get-AzureRmVMSize -Location $strLocation | Select-Object -ExpandPr
 $strVMSize = StringPicker($arrVMSizes)
 
 # Get OS Disk details
-Do
+do
 {
     Write-Host ''
     $strUseExistingOSDisk = Read-Host -Prompt 'Use an existing OS disk? (Y/N)'
 }
-Until ($strUseExistingOSDisk.ToLower() -eq 'y' -or $strUseExistingOSDisk.ToLower() -eq 'n')
+until ($strUseExistingOSDisk.ToLower() -eq 'y' -or $strUseExistingOSDisk.ToLower() -eq 'n')
 
-If ($strUseExistingOSDisk.ToLower() -eq 'y')
+if ($strUseExistingOSDisk.ToLower() -eq 'y')
 {
     # Get existing OSDisk
     $strOSDiskName = 'OSDisk'
     $strOSDiskURI = Read-Host -Prompt 'Provide the URI of the existing OS disk to attach (copy/paste from the Azure web portal)'
 }
-Else
+else
 {
     # Get/create storage account
     Write-Host ''
@@ -326,17 +338,17 @@ Else
 $arrAdditionalDataDisks = @()
 $intLUNNumber = 0
 
-Do
+do
 {
     Write-Host ''
     $strAddAnotherDisk = Read-Host -Prompt 'Add an additional data disk to the new VM? (Y/N)'
     $strAddAnotherDisk = $strAddAnotherDisk.ToLower()
-    If ($strAddAnotherDisk -eq 'y')
+    if ($strAddAnotherDisk -eq 'y')
     {
         Write-Host ''
         $strAddExistingDisk = Read-Host -Prompt 'Is this an existing disk? (Y/N)'
         $strAddExistingDisk = $strAddExistingDisk.ToLower()
-        If ($strAddExistingDisk -eq 'y')
+        if ($strAddExistingDisk -eq 'y')
         {
             Write-Host ''
             $strDiskName = Read-Host -Prompt 'Provide a name for the existing data disk to attach (for example, "ServerName-Data1.vhd" has a name of "Data1")'
@@ -353,25 +365,25 @@ Do
                                           'attach')
             $intLUNNumber++
         }
-        Else
+        else
         {
-            Do
+            do
             {
                 Write-Host ''
                 $intDiskSize = Read-Host -Prompt "Please provide disk size (in GB, between 1 and 1023, inclusive) of data disk $intDiskNumber"
                 [int]$intDiskSize = [convert]::ToInt32($intDiskSize,10)
     
-                If (($intDiskSize -lt 1) -or ($intDiskSize -gt 1023)) 
+                if (($intDiskSize -lt 1) -or ($intDiskSize -gt 1023)) 
                 {
                     $boolValidDiskSize = $False
                     Write-Host 'Invalid disk size! Disk size must be between 1 and 1023, inclusive.'
                 }
-                Else
+                else
                 {
                     $boolValidDiskSize = $True
                 }
             }
-            Until ($boolValidDiskSize -eq $True)
+            until ($boolValidDiskSize -eq $True)
 
             Write-Host ''
             $strDiskName = Read-Host -Prompt 'Provide a name for the data disk (e.g. Data1, Data2, Log1, Scratch1, etc)'
@@ -393,35 +405,35 @@ Do
         }
     }
 }
-Until ($strAddAnotherDisk -ne 'y')
+until ($strAddAnotherDisk -ne 'y')
 
 
 # Get credentials for joining domain
-If ($strVmType -eq 'Windows')
+if ($strVmType -eq 'Windows')
 {
-    Do
+    do
     {
         Write-Host ''
         $strJoinDomain = Read-Host -Prompt 'Join this computer to a domain? (Y/N)'
     }
-    Until ($strJoinDomain.ToLower() -eq 'y' -or $strJoinDomain.ToLower() -eq 'n')
+    until ($strJoinDomain.ToLower() -eq 'y' -or $strJoinDomain.ToLower() -eq 'n')
 }
     
-If ($strJoinDomain.ToLower() -eq 'y')
+if ($strJoinDomain.ToLower() -eq 'y')
 {
     Write-Host ''
     $strWindowsDomain = Read-Host 'Please provide an Active Directory domain for the new VM'
     $objDomainJoinCredential = Get-Credential -Message ("Please enter the password of an account with permissions to join the "+$strWindowsDomain+" domain")
 }
 
-Do
+do
 {
     Write-Host ''
     $strApplyTag = Read-Host -Prompt 'Tag this VM? (Y/N)'
 }
-Until ($strApplyTag.ToLower() -eq 'y' -or $strApplyTag.ToLower() -eq 'n')
+until ($strApplyTag.ToLower() -eq 'y' -or $strApplyTag.ToLower() -eq 'n')
 
-If ($strApplyTag.ToLower() -eq 'y')
+if ($strApplyTag.ToLower() -eq 'y')
 {
     $arrVMTag = SelectTag(ParseTags)
 }
@@ -436,7 +448,7 @@ Write-Host '    Resource Group: '$objResourceGroup.ResourceGroupName
 Write-Host '    Azure Virtual Machine Name: '$strAzureVMName
 Write-Host '    Windows Virtual Machine Hostname: '$strVMHostname
 
-Foreach ($arrNIC in $arrNICs)
+foreach ($arrNIC in $arrNICs)
 {
     Write-Host '    Virtual NIC' $arrNIC[0] 'name: '$arrNIC[2]
     Write-Host '    Virtual NIC' $arrNIC[0] 'type: '$arrNIC[1]
@@ -451,22 +463,22 @@ Foreach ($arrNIC in $arrNICs)
     }
 }
 
-If ($strAddToAvailabilitySet.ToLower() -eq 'y')
+if ($strAddToAvailabilitySet.ToLower() -eq 'y')
 {
     Write-Host '    Availability Set: '$objAvailabilitySet.Name
 }
-Else
+else
 {
     Write-Host '    Availability Set: None'
 }
 
 Write-Host '    Virtual Machine Size: '$strVMSize
 
-If ($strUseExistingOSDisk.ToLower() -eq 'y')
+if ($strUseExistingOSDisk.ToLower() -eq 'y')
 {
     Write-Host '    Existing OS Disk URI: '$strOSDiskURI
 }
-Else
+else
 {
     Write-Host '    Virtual Machine Image Publisher: '$strPublisherName
     Write-Host '    Virtual Machine Offer Name: '$strOfferName
@@ -485,7 +497,7 @@ Else
     Write-Host '    OS Disk URI: '$strOSDiskURI
 }
 
-Foreach ($arrDataDisk in $arrAdditionalDataDisks)
+foreach ($arrDataDisk in $arrAdditionalDataDisks)
 {
     Write-Host "    Data Disk $($arrDataDisk[0]+1) Type: $($arrDataDisk[1])"
     Write-Host "    Data Disk $($arrDataDisk[0]+1) Name: $($arrDataDisk[3])"
@@ -494,43 +506,43 @@ Foreach ($arrDataDisk in $arrAdditionalDataDisks)
     Write-Host "    Data Disk $($arrDataDisk[0]+1) URI: $($arrDataDisk[6])"
 }
 
-If ($strJoinDomain.ToLower() -eq 'y')
+if ($strJoinDomain.ToLower() -eq 'y')
 {
-    Write-Host '    Windows Domain Name: '$strWindowsDomain
+    Write-Host '    Windows domain Name: '$strWindowsDomain
     Write-Host '    Domain Join Account: '$objDomainJoinCredential.GetNetworkCredential().UserName
 }
 
-If ($strApplyTag.ToLower() -eq 'y')
+if ($strApplyTag.ToLower() -eq 'y')
 {
     Write-Host "    Tag Name: $($arrVMTag[0])"
     Write-Host "    Tag Value: $($arrVMTag[1])"
 }
 Write-Host ''
 
-Do
+do
 {
     $strCompleteProvisioning = Read-Host -Prompt 'Is everything above correct? (Y/N)'
 }
-Until ($strCompleteProvisioning.ToLower() -eq 'y' -or $strCompleteProvisioning.ToLower() -eq 'n')
+until ($strCompleteProvisioning.ToLower() -eq 'y' -or $strCompleteProvisioning.ToLower() -eq 'n')
 
-If ($strCompleteProvisioning.ToLower() -eq 'n')
+if ($strCompleteProvisioning.ToLower() -eq 'n')
 {
     Write-Host 'Exiting script!'
     Exit
 }
-If ($strCompleteProvisioning.ToLower() -eq 'y')
+if ($strCompleteProvisioning.ToLower() -eq 'y')
 {
     Write-Host 'Completing VM creation. Please wait...'
     Write-Host ''
     
     # Instantiate VM config
-    If ($strAddToAvailabilitySet.ToLower() -eq 'y')
+    if ($strAddToAvailabilitySet.ToLower() -eq 'y')
     {
         $objVM = New-AzureRmVMConfig -VMName $strAzureVMName `
                                      -VMSize $strVMSize `
                                      -AvailabilitySetId $objAvailabilitySet.Id
     }
-    Else
+    else
     {
         $objVM = New-AzureRmVMConfig -VMName $strAzureVMName `
                                      -VMSize $strVMSize
@@ -538,81 +550,139 @@ If ($strCompleteProvisioning.ToLower() -eq 'y')
     # Configure options, mount NIC, and mount OS disk
 
     # Create/Mount NIC(s) as needed
-    ForEach ($arrNIC in $arrNICs)
+    foreach($arrNIC in $arrNICs)
     {
-        If ($arrNIC[1] -eq 'Existing')
+        if ($arrNIC[1] -eq 'Existing')
         {
-            If ($arrNIC[0] -eq 1)
+            if ($arrNIC[0] -eq 1)
             {
-                $objNIC = Get-AzureRmNetworkInterface -Name $arrNIC[2] -ResourceGroupName $arrNIC[3]
-                $objVM = Add-AzureRmVMNetworkInterface -VM $objVM -Id $objNIC.Id -Primary
+                $objNIC = Get-AzureRmNetworkInterface -Name $arrNIC[2] `
+                                                      -ResourceGroupName $arrNIC[3]
+                $objVM = Add-AzureRmVMNetworkInterface -VM $objVM `
+                                                       -Id $objNIC.Id `
+                                                       -Primary
             }
-            Else
+            else
             {
-                $objNIC = Get-AzureRmNetworkInterface -Name $arrNIC[2] -ResourceGroupName $arrNIC[3]
-                $objVM = Add-AzureRmVMNetworkInterface -VM $objVM -Id $objNIC.Id
+                $objNIC = Get-AzureRmNetworkInterface -Name $arrNIC[2] `
+                                                      -ResourceGroupName $arrNIC[3]
+                $objVM = Add-AzureRmVMNetworkInterface -VM $objVM `
+                                                       -Id $objNIC.Id
             }
         }
-        Elseif ($arrNIC[0] -eq 1 -and $arrNIC[9] -ne $null)
+        elseif ($arrNIC[0] -eq 1 -and $arrNIC[9] -ne $null)
         {
-            $objNIC = New-AzureRmNetworkInterface -Name $arrNIC[2] -ResourceGroupName $arrNIC[3] -Location $arrNIC[4] -SubnetId $arrNIC[6] -PrivateIpAddress $arrNIC[8] -PublicIpAddressId $arrNIC[9]
-            $objVM = Add-AzureRmVMNetworkInterface -VM $objVM -Id $objNIC.Id -Primary
+            $objNIC = New-AzureRmNetworkInterface -Name $arrNIC[2] `
+                                                  -ResourceGroupName $arrNIC[3] `
+                                                  -Location $arrNIC[4] `
+                                                  -SubnetId $arrNIC[6] `
+                                                  -PrivateIpAddress $arrNIC[8] `
+                                                  -PublicIpAddressId $arrNIC[9]
+            $objVM = Add-AzureRmVMNetworkInterface -VM $objVM `
+                                                   -Id $objNIC.Id `
+                                                   -Primary
         }
                 
-        ElseIf ($arrNIC[0] -eq 1 -and $arrNIC[9] -eq $null)
+        elseif ($arrNIC[0] -eq 1 -and $arrNIC[9] -eq $null)
         {
-            $objNIC = New-AzureRmNetworkInterface -Name $arrNIC[2] -ResourceGroupName $arrNIC[3] -Location $arrNIC[4] -SubnetId $arrNIC[6] -PrivateIpAddress $arrNIC[8]
-            $objVM = Add-AzureRmVMNetworkInterface -VM $objVM -Id $objNIC.Id -Primary
+            $objNIC = New-AzureRmNetworkInterface -Name $arrNIC[2] `
+                                                  -ResourceGroupName $arrNIC[3] `
+                                                  -Location $arrNIC[4] `
+                                                  -SubnetId $arrNIC[6] `
+                                                  -PrivateIpAddress $arrNIC[8]
+            $objVM = Add-AzureRmVMNetworkInterface -VM $objVM `
+                                                   -Id $objNIC.Id `
+                                                   -Primary
         }
             
-        ElseIf ($arrNIC[0] -ne 1 -and $arrNIC[9] -ne $null)
+        elseif ($arrNIC[0] -ne 1 -and $arrNIC[9] -ne $null)
         {
-            $objNIC = New-AzureRmNetworkInterface -Name $arrNIC[2] -ResourceGroupName $arrNIC[3] -Location $arrNIC[4] -SubnetId $arrNIC[6] -PrivateIpAddress $arrNIC[8] -PublicIpAddressId $arrNIC[9]
-            $objVM = Add-AzureRmVMNetworkInterface -VM $objVM -Id $objNIC.Id 
+            $objNIC = New-AzureRmNetworkInterface -Name $arrNIC[2] `
+                                                  -ResourceGroupName $arrNIC[3] `
+                                                  -Location $arrNIC[4] `
+                                                  -SubnetId $arrNIC[6] `
+                                                  -PrivateIpAddress $arrNIC[8] `
+                                                  -PublicIpAddressId $arrNIC[9]
+            $objVM = Add-AzureRmVMNetworkInterface -VM $objVM `
+                                                   -Id $objNIC.Id 
         }
 
-        ElseIf ($arrNIC[0] -ne 1 -and $arrNIC[9] -eq $null)
+        elseif ($arrNIC[0] -ne 1 -and $arrNIC[9] -eq $null)
         {
                 
-            $objNIC = New-AzureRmNetworkInterface -Name $arrNIC[2] -ResourceGroupName $arrNIC[3] -Location $arrNIC[4] -SubnetId $arrNIC[6] -PrivateIpAddress $arrNIC[8]
-            $objVM = Add-AzureRmVMNetworkInterface -VM $objVM -Id $objNIC.Id
+            $objNIC = New-AzureRmNetworkInterface -Name $arrNIC[2] `
+                                                  -ResourceGroupName $arrNIC[3] `
+                                                  -Location $arrNIC[4] `
+                                                  -SubnetId $arrNIC[6] `
+                                                  -PrivateIpAddress $arrNIC[8]
+            $objVM = Add-AzureRmVMNetworkInterface -VM $objVM `
+                                                   -Id $objNIC.Id
          }
     }
 
     # Mount/create OS Disk and other volumes
-    If ($strUseExistingOSDisk.ToLower() -eq 'y')
+    if ($strUseExistingOSDisk.ToLower() -eq 'y')
     {
-        $objVM = Set-AzureRmVMOSDisk -VM $objVM -Name "OSDisk" -VhdUri $strOSDiskURI -CreateOption attach -Windows
+        $objVM = Set-AzureRmVMOSDisk -VM $objVM `
+                                     -Name "OSDisk" `
+                                     -VhdUri $strOSDiskURI `
+                                     -CreateOption attach `
+                                     -Windows
     }
-    Else
+    else
     {
         if($strVmType -eq 'Windows')
         {
-            $objVM = Set-AzureRmVMOperatingSystem -VM $objVM -Windows -ComputerName $strVMHostname -Credential $objLocalAdminCredential -WinRMHttp -ProvisionVMAgent -TimeZone $strTimeZone
+            $objVM = Set-AzureRmVMOperatingSystem -VM $objVM `
+                                                  -Windows `
+                                                  -ComputerName $strVMHostname `
+                                                  -Credential $objLocalAdminCredential `
+                                                  -WinRMHttp -ProvisionVMAgent `
+                                                  -TimeZone $strTimeZone
         }
 
         elseif($strVmType -eq 'Linux')
         {
-            $objVM = Set-AzureRmVMOperatingSystem -VM $objVM -Linux -ComputerName $strVMHostname -Credential $objLocalAdminCredential
+            $objVM = Set-AzureRmVMOperatingSystem -VM $objVM `
+                                                  -ComputerName $strVMHostname `
+                                                  -Credential $objLocalAdminCredential `
+                                                  -Linux 
         }
         
-        $objVM = Set-AzureRmVMSourceImage -VM $objVM -PublisherName $strPublisherName -Offer $strOfferName -Skus $strSKUName -Version 'latest'
-        $objVM = Set-AzureRmVMOSDisk -VM $objVM -Name $strOSDiskName -VhdUri $strOSDiskURI -CreateOption fromImage
+        $objVM = Set-AzureRmVMSourceImage -VM $objVM `
+                                          -PublisherName $strPublisherName `
+                                          -Offer $strOfferName `
+                                          -Skus $strSKUName `
+                                          -Version 'latest'
+        $objVM = Set-AzureRmVMOSDisk -VM $objVM `
+                                     -Name $strOSDiskName `
+                                     -VhdUri $strOSDiskURI `
+                                     -CreateOption fromImage
     }
 
-    Foreach ($arrDataDisk in $arrAdditionalDataDisks)
+    foreach ($arrDataDisk in $arrAdditionalDataDisks)
     {
-        Add-AzureRmVMDataDisk -VM $objVM -Name $arrDataDisk[3] -DiskSizeInGB $arrDataDisk[2] -VhdUri $arrDataDisk[6] -LUN $arrDataDisk[0] -CreateOption $arrDataDisk[7]
+        Add-AzureRmVMDataDisk -VM $objVM `
+                              -Name $arrDataDisk[3] `
+                              -DiskSizeInGB $arrDataDisk[2] `
+                              -VhdUri $arrDataDisk[6] `
+                              -LUN $arrDataDisk[0] `
+                              -CreateOption $arrDataDisk[7]
     }
 
     # Create VM
-    If ($strApplyTag.ToLower() -eq 'y')
+    if ($strApplyTag.ToLower() -eq 'y')
     {
-        New-AzureRmVM -ResourceGroupName $objResourceGroup.ResourceGroupName -Location $strLocation -VM $objVM -Tags @(@{Name=$($arrVMTag[0]);Value=$($arrVMTag[1])})
+        New-AzureRmVM -ResourceGroupName $objResourceGroup.ResourceGroupName `
+                      -Location $strLocation `
+                      -VM $objVM `
+                      -Tags @(@{Name=$($arrVMTag[0]);Value=$($arrVMTag[1])})
     }
-    Else
+    else
     {
-        New-AzureRmVM -ResourceGroupName $objResourceGroup.ResourceGroupName -Location $strLocation -VM $objVM
+        New-AzureRmVM -ResourceGroupName $objResourceGroup.ResourceGroupName `
+                      -Location $strLocation `
+                      -VM $objVM
     }
         
 }
@@ -621,8 +691,16 @@ Write-Host 'VM Provisioning complete.'
 if (($strUseExistingOSDisk.ToLower() -eq 'n') -and ($strJoinDomain.ToLower() -eq 'y'))
 {
     Write-Host ''
-    Write-Host 'Joining VM to Domain...'
-    Set-AzureRMVMExtension -VMName $strAzureVMName –ResourceGroupName $objResourceGroup.ResourceGroupName -Name "JoinAD" -ExtensionType "JsonADDomainExtension" -Publisher "Microsoft.Compute" -TypeHandlerVersion "1.0" -Location $strLocation -Settings @{ "Name" = $strWindowsDomain; "OUPath" = ""; "User" = "$($objDomainJoinCredential.GetNetworkCredential().UserName)"; "Restart" = "true"; "Options" = 3} -ProtectedSettings @{"Password" = "$($objDomainJoinCredential.GetNetworkCredential().Password)"}
+    Write-Host 'Joining VM to domain...'
+    Set-AzureRMVMExtension -VMName $strAzureVMName `
+                           –ResourceGroupName $objResourceGroup.ResourceGroupName `
+                           -Name "JoinAD" `
+                           -ExtensionType "JsonADDomainExtension" `
+                           -Publisher "Microsoft.Compute" `
+                           -TypeHandlerVersion "1.0" `
+                           -Location $strLocation `
+                           -Settings @{ "Name" = $strWindowsDomain; "OUPath" = ""; "User" = "$($objDomainJoinCredential.GetNetworkCredential().UserName)"; "Restart" = "true"; "Options" = 3} `
+                           -ProtectedSettings @{"Password" = "$($objDomainJoinCredential.GetNetworkCredential().Password)"}
     $objDomainJoinCredential = $null
     Write-Host 'Domain join complete.'
 }

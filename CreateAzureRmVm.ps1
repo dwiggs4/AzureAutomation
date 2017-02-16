@@ -1,4 +1,4 @@
-# Include Azure RM Function Library
+# Include Azure Resource Manager Function Library
 ."$PSScriptRoot\AzureRmFunctionalLibrary.ps1"
 
 # Remove all session variables
@@ -16,17 +16,20 @@ catch [InvalidOperationException]
 }
 
 # Select appropriate Azure subscription
+# Function SelectAzureRmSubscription found in AzureRmFunctionalLibrary.ps1
 Write-Host ''
 Write-Host 'Please select a subscription for the new VM.'
 $objSubscription = SelectAzureRmSubscription
 
 # Collect required input
+# Function StringPicker found in AzureRmFunctionalLibrary.ps1
 Write-Host ''
 Write-Host 'Please select a region for the new VM.'
 $arrRegions = 'East US','West US'
 $strLocation = StringPicker($arrRegions)
 
 # Get/create resource group
+# Function ObjectPicker found in AzureRmFunctionalLibrary.ps1
 Write-Host ''
 Write-Host 'Please select a resource group for the new VM.'
 Write-Host 'The following resource groups exist in this subscription:'
@@ -37,83 +40,24 @@ if($objResourceGroup -eq $null)
 }
 
 # Collect required input
+# Function StringPicker found in AzureRmFunctionalLibrary.ps1
 Write-Host ''
 Write-Host 'Please select the VM type.'
 $arrVmTypes = 'Linux','Windows'
 $strVmType = StringPicker($arrVmTypes)
 
-function Get-SitePrefix
-{
-    Write-Host ''
-    Write-Host 'The naming standard for ' -NoNewline; Write-Host 'Azure objects' -ForegroundColor Magenta -NoNewline; Write-Host ' is as follows:'
-    Write-Host ''
-    Write-Host '        xxx' -ForegroundColor Magenta -NoNewline; Write-Host 'YYYDescription'
-    Write-Host ''
-    Write-Host 'Where:' 
-    Write-Host '    xxx' -ForegroundColor Magenta -NoNewline; Write-Host ' = the three-character site code/unique identifier for the current Azure subscription' 
-    Write-Host '    YYY = three-character object code identifying the object type'
-    Write-Host '    Description = text string describing the object'
-    Write-Host ''
-    $sitePrefix = Read-Host -Prompt 'Please provide the site code/uniqe identifier for the new VM'
-    $sitePrefix = $sitePrefix.ToLower()
-    [regex]$regSitePrefix = '\b[a-zA-Z]{3}\b'
-    if($sitePrefix -notmatch $regSitePrefix)
-    {
-        Write-Host ''
-        Write-Host 'Error in confirming the site code/unique identifyer.' -ForegroundColor Red
-        Write-Host 'Please try again.' -ForegroundColor Red
-        Get-SitePrefix
-    }
-    return $sitePrefix
-}
-
-[string]$strSitePrefix = Get-SitePrefix
+# Collect required input
+# Function GetSitePrefix found in AzureRmFunctionalLibrary.ps1
+$strSitePrefix = GetSitePrefix
 
 # Get virtual machine hostname
 Write-Host ''
 Write-Host 'The following virtual machines exist in this subscription:'
 ObjectLister(Get-AzureRmVm)
 Write-Host ''
-if($strVmType -like "Linux")
-{
-    Write-Host ''
-    Write-Host 'The naming standard for Linux virtual machines is as follows:'
-    Write-Host ''
-    Write-Host '        xxx' -ForegroundColor Yellow -NoNewline; Write-Host 'LVM' -ForegroundColor Magenta -NoNewline; Write-Host 'Hostname' -ForegroundColor Cyan
-    Write-Host ''
-    Write-Host 'Where:'
-    Write-Host '    xxx' -ForegroundColor Yellow -NoNewline; Write-Host ' = the three-character site code/unique identifier for the current Azure subscription' 
-    Write-Host '    LVM' -ForegroundColor Magenta -NoNewline; Write-Host ' = the three-character code for a Linux virtual machine object' 
-    Write-Host '    Hostname' -ForegroundColor Cyan -NoNewline; Write-Host ' = the Linux hostname of the new virtual machine' 
-    Write-Host ''
-}
 
-elseif($strVmType -like "Windows")
-{
-    Write-Host 'The naming standard for Windows virtual machines is as follows:'
-    Write-Host ''
-    Write-Host '        xxx' -ForegroundColor Yellow -NoNewline; Write-Host 'WVM' -ForegroundColor Magenta -NoNewline; Write-Host 'Hostname' -ForegroundColor Cyan
-    Write-Host ''
-    Write-Host 'Where:'
-    Write-Host '    xxx' -ForegroundColor Yellow -NoNewline; Write-Host ' = the three-character site code/unique identifier for the current Azure subscription'
-    Write-Host '    LVM' -ForegroundColor Magenta -NoNewline; Write-Host ' = the three-character code for a Windows virtual machine object'
-    Write-Host '    Hostname' -ForegroundColor Cyan -NoNewline; Write-Host ' = the Windows hostname of the new virtual machine'
-    Write-Host ''
-}
-
-Do
-{
-    $boolValidAzureVMName = $true
-    $strAzureVMName = Read-Host -Prompt 'Please provide the name of the Azure virtual machine object'
-    $strVMHostname = $strAzureVMName.Substring(6)
-    Get-AzureRmVM | ForEach-Object {if ($_.Name -eq $strAzureVMName)
-        {
-            $boolValidAzureVMName = $false
-            Write-Host 'Azure virtual machine' $strAzureVMName ' already exists in this subscription. Select an alternate hostname.'
-        }
-    }
-}
-Until ($boolValidAzureVMName -eq $true)
+$strAzureVMName = GetVmHostname($strVmType)
+$strVMHostname = $strAzureVMName.Substring(6)
 
 # Instantiate NIC array
 # NIC Number (1 indexed), NIC Type (new vs. existing), NIC name, NIC resource group name, NIC location, NIC network name, NIC subnet ID, NIC subnet name (for display purposes), Private IP address
@@ -134,7 +78,15 @@ If ($strUseExistingPrimaryNIC.ToLower() -eq 'y')
     Write-Host 'Please select an existing NIC for the new VM.'
     Write-Host 'The following NICs exist in this subscription and resource group which are not assigned to an existing virtual machine:'
     $objPrimaryNIC = ObjectPicker(Get-AzureRmNetworkInterface -ResourceGroupName $objResourceGroup.ResourceGroupName | Where-Object {$_.VirtualMachine -eq $null})
-    $arrNICs += ,@(1,"Existing",$objPrimaryNIC.Name,$objPrimaryNIC.ResourceGroupName,$strLocation,(($objPrimaryNIC.IpConfigurations.Subnet.Id).Split("/"))[-3],$objPrimaryNIC.IPConfigurations.Subnet.Id,(($objPrimaryNIC.IpConfigurations.Subnet.Id).Split("/"))[-1],$objPrimaryNIC.IpConfigurations.PrivateIPAddress)
+    $arrNICs += ,@(1, `
+                   "Existing", `
+                   $objPrimaryNIC.Name, `
+                   $objPrimaryNIC.ResourceGroupName, `
+                   $strLocation, `
+                   (($objPrimaryNIC.IpConfigurations.Subnet.Id).Split("/"))[-3], `
+                   $objPrimaryNIC.IPConfigurations.Subnet.Id, `
+                   (($objPrimaryNIC.IpConfigurations.Subnet.Id).Split("/"))[-1], `
+                   $objPrimaryNIC.IpConfigurations.PrivateIPAddress)
 }
 Else
 {
@@ -156,7 +108,7 @@ Else
     # Get private IP and DNS domain
     $strPrimarySubnetAddressPrefix = $objPrimaryVirtualNetwork.Subnets[$intPrimarySubnetIndex].AddressPrefix
     Write-Host ''
-    Write-Host "The address range for the selected subnet is $strPrimarySubnetAddressPrefix"
+    Write-Host 'The address range for the selected subnet is' -NoNewline; Write-Host "$strPrimarySubnetAddressPrefix" -ForegroundColor Yellow
     $strPrimaryPrivateIPAddress = Read-Host -Prompt 'Provide the Virtual Machine private IP Address (xxx.xxx.xxx.xxx format)'
     
     do
@@ -168,6 +120,7 @@ Else
     If ($addPublicIp -eq 'y')
     {
         Write-Host 'Creating public IP address...'
+        # Conform to naming convention
         $strPublicIpName = "$strSitePrefix" + 'PIP' + "$strPrimaryNICName"
         $objPublicIp = New-AzureRmPublicIpAddress -Name $strPublicIpName `
                                                   -ResourceGroupName $objResourceGroup.ResourceGroupName `
@@ -176,11 +129,16 @@ Else
                                                   -Force `
                                                   -WarningAction Ignore
     }
-
-    
-
     # Store NIC values in array
-    $arrNICs += ,@(1, "New", $strPrimaryNICName, $objResourceGroup.ResourceGroupName, $strLocation,$objPrimaryVirtualNetwork.Name, $objPrimaryVirtualNetwork.Subnets[$intPrimarySubnetIndex].Id, $objPrimaryVirtualNetwork.Subnets[$intPrimarySubnetIndex].Name, $strPrimaryPrivateIPAddress, $objPublicIp.Id)
+    $arrNICs += ,@(1, `
+                   "New", `
+                   $strPrimaryNICName, `
+                   $objResourceGroup.ResourceGroupName, `
+                   $strLocation,$objPrimaryVirtualNetwork.Name, `
+                   $objPrimaryVirtualNetwork.Subnets[$intPrimarySubnetIndex].Id, `
+                   $objPrimaryVirtualNetwork.Subnets[$intPrimarySubnetIndex].Name, `
+                   $strPrimaryPrivateIPAddress, `
+                   $objPublicIp.Id)
 }
 
 $intNICIndex = 2
@@ -189,9 +147,10 @@ Do
 {
     Write-Host ''
     Write-Host 'Larger size VMs can support more than a single NIC.'
-    Write-Host '2 NICs: A3, A6, A8, A10, D2, D11, DS2, DS11, G2'
-    Write-Host '4 NICs: A4, A7, A9, A11, D3, D12, DS3, DS12, G3'
-    Write-Host '8 NICs: D4, D13, D14, DS4, DS13, DS14, G4, G5'
+    Write-Host '2 NICs: A3, A6, A8, A10, A2_v2, A2m_v2, D2(v2), D11(v2), DS2(v2), DS11(v2), G2(v2)'
+    Write-Host '4 NICs: A4, A7, A9, A11, A4_v2, A4m_v2, D3(v2), D12(v2), DS3(v2), DS12(v2), G3(v2)'
+    Write-Host '8 NICs: A8_v2, A8m_v2, D4(v2), D5_v2, D13(v2), D14(v2), D15_v2, DS4(v2), DS13(v2), DS14 (v2),' 
+    Write-Host '        G4(v2), G5(v2)'
     Write-Host ''
     $strAddAnotherNIC = Read-Host -Prompt 'Add an additional NIC to the new VM? (Y/N)'
     $strAddAnotherNIC = $strAddAnotherNIC.ToLower()
@@ -212,7 +171,15 @@ Do
             Write-Host 'Please select an existing NIC for the new VM.'
             Write-Host 'The following NICs exist in this subscription and resource group which are not assigned to an existing virtual machine:'
             $objNIC = ObjectPicker(Get-AzureRmNetworkInterface -ResourceGroupName $objResourceGroup.ResourceGroupName | Where-Object {$_.VirtualMachine -eq $null})
-            $arrNICs += ,@($intNICIndex,"Existing",$objNIC.Name,$objNIC.ResourceGroupName,$strLocation,(($objNIC.IpConfigurations.Subnet.Id).Split("/"))[-3],$objNIC.IPConfigurations.Subnet.Id,(($objNIC.IpConfigurations.Subnet.Id).Split("/"))[-1],$objNIC.IpConfigurations.PrivateIPAddress)
+            $arrNICs += ,@($intNICIndex, `
+                           "Existing", `
+                           $objNIC.Name, `
+                           $objNIC.ResourceGroupName, `
+                           $strLocation, `
+                           (($objNIC.IpConfigurations.Subnet.Id).Split("/"))[-3], `
+                           $objNIC.IPConfigurations.Subnet.Id, `
+                           (($objNIC.IpConfigurations.Subnet.Id).Split("/"))[-1], `
+                           $objNIC.IpConfigurations.PrivateIPAddress)
             $intNICIndex++
         }
         Else
@@ -228,42 +195,38 @@ Do
             Write-Host 'Please select a virtual subnet for the new VM.'
             Write-Host 'The following virtual subnets exist in this virtual network:'
     
-            # Write object list to screen. Cannot use StringPicker function because subnet index is zero indexed.         
+            # Write object list to screen. ObjectPicker returns an integer.         
             $intSubnetIndex = ObjectPicker($objVirtualNetwork.Subnets)           
-            
-            <#
-            $intNumber = 0
-            Foreach ($objVirtualSubnet in $objVirtualNetwork.Subnets)
-            {
-                Write-Host $intNumber":" $objVirtualSubnet.Name
-                $intNumber++
-            }
-            Write-Host
-            $intSubnetIndex = Read-Host -Prompt 'Enter the number of the desired object'
-            #>
-
-           # Set NIC Name
-           $strPrimaryNICName = $strSitePrefix + 'NIC' + $strVMHostname + '-1'
+                       
+            # Set NIC Name
+            $strPrimaryNICName = $strSitePrefix + 'NIC' + $strVMHostname + '-1'
     
-           # Get private IP and DNS domain
-           $strPrimarySubnetAddressPrefix = $objPrimaryVirtualNetwork.Subnets[$intPrimarySubnetIndex].AddressPrefix
-           Write-Host "The address range for the selected subnet is $strPrimarySubnetAddressPrefix"
-           $strPrimaryPrivateIPAddress = Read-Host -Prompt 'Provide the NIC private IP Address (xxx.xxx.xxx.xxx format)'
-           $addPublicIp = Read-Host -Prompt 'Would you like to add a public IP address to the NIC? (Y/N)'
+            # Get private IP and DNS domain
+            $strPrimarySubnetAddressPrefix = $objPrimaryVirtualNetwork.Subnets[$intPrimarySubnetIndex].AddressPrefix
+            Write-Host "The address range for the selected subnet is $strPrimarySubnetAddressPrefix"
+            $strPrimaryPrivateIPAddress = Read-Host -Prompt 'Provide the NIC private IP Address (xxx.xxx.xxx.xxx format)'
+            $addPublicIp = Read-Host -Prompt 'Would you like to add a public IP address to the NIC? (Y/N)'
 
-           If ($addPublicIp -eq 'y')
-           {
-               $strPublicIpName = "$strSitePrefix" + 'PIP' + "$strPrimaryNICName"
-               $objPublicIp = New-AzureRmPublicIpAddress -Name $strPublicIpName `
-                                                         -ResourceGroupName $objResourceGroup `
-                                                         -AllocationMethod Static `
-                                                         -Location $strLocation `
-                                                         -Force `
-                                                         -WarningAction Ignore
+            If ($addPublicIp -eq 'y')
+            {
+                $strPublicIpName = "$strSitePrefix" + 'PIP' + "$strPrimaryNICName"
+                $objPublicIp = New-AzureRmPublicIpAddress -Name $strPublicIpName `
+                                                          -ResourceGroupName $objResourceGroup `
+                                                          -AllocationMethod Static `
+                                                          -Location $strLocation `
+                                                          -Force `
+                                                          -WarningAction Ignore
             }
 
             # Store NIC values in array
-            $arrNICs += ,@($intNICIndex,"New",$strNICName,$objResourceGroup.ResourceGroupName,$strLocation,$objVirtualNetwork.Name,$objVirtualNetwork.Subnets[$intSubnetIndex].Id,$objVirtualNetwork.Subnets[$intPrimarySubnetIndex].Name,$strPrivateIPAddress, $objPublicIp.Id)
+            $arrNICs += ,@($intNICIndex, `
+                           "New", `
+                           $strNICName, `
+                           $objResourceGroup.ResourceGroupName, `
+                           $strLocation,$objVirtualNetwork.Name, `
+                           $objVirtualNetwork.Subnets[$intSubnetIndex].Id, `
+                           $objVirtualNetwork.Subnets[$intPrimarySubnetIndex].Name, `
+                           $strPrivateIPAddress, $objPublicIp.Id)
             $intNICIndex++
         }
     }
@@ -286,7 +249,7 @@ If ($strAddToAvailabilitySet -eq 'y')
 Write-Host ''
 Write-Host 'Please select a size for the new VM.'
 Write-Host 'The following sizes are available:'
-$arrVMsizes = Get-AzureRmVMSize -Location $strLocation | Select-Object -ExpandProperty Name
+$arrVMsizes = Get-AzureRmVMSize -Location $strLocation | Select-Object -ExpandProperty Name 
 $strVMSize = StringPicker($arrVMSizes)
 
 # Get OS Disk details
@@ -331,16 +294,20 @@ Else
     Write-Host ''
     Write-Host 'Please select an offer for the new VM image.'
     Write-Host 'For the selected publisher, the following offers are available:'
-    $objOffer = ObjectPicker(Get-AzureRmVMImageOffer -Location $strLocation -Publisher $strPublisherName)
+    $objOffer = ObjectPicker(Get-AzureRmVMImageOffer -Location $strLocation `
+                                                     -Publisher $strPublisherName)
     $strOfferName = $objOffer.Offer
     
     Write-Host ''
     Write-Host 'Please select a SKU for the new VM image.'
     Write-Host 'For the selected publisher and offer, the following SKUs are available:'
-    $objSKU = ObjectPicker(Get-AzureRmVMImageSKU -Location $strLocation -Publisher $strPublisherName -Offer $strOfferName)
+    $objSKU = ObjectPicker(Get-AzureRmVMImageSKU -Location $strLocation `
+                                                 -Publisher $strPublisherName `
+                                                 -Offer $strOfferName)
     $strSKUName = $objSKU.Skus
     
-    $objLocalAdminCredential = Get-Credential –Message "Please enter the desired local administrator password." `
+    $objLocalAdminCredential = Get-Credential –Message "Please enter the desired local administrator password. Note that for Linux VMs `
+                                                        the password must be at least 13 characters." `
                                               -UserName ("adm."+($strVMHostname.ToUpper()))
     
     $arrTimeZone = 'Pacific Standard Time', 'Mountaint Standard Time', 'Central Standard Time', 'Eastern Standard Time'
@@ -352,7 +319,9 @@ Else
 }
 
 # Instantiate disk array
-# LUN number (0 indexed), Disk type (new or existing), Disk size (in GB, $null for no change), Disk name, Storage account name (if known), Storage account object (if possible), Disk URI, CreateOption (empty, attach, fromimage)
+# LUN number (0 indexed), Disk type (new or existing), Disk size (in GB, $null for no change), 
+# Disk name, Storage account name (if known), Storage account object (if possible), Disk URI, 
+# CreateOption (empty, attach, fromimage)
 
 $arrAdditionalDataDisks = @()
 $intLUNNumber = 0
@@ -374,7 +343,14 @@ Do
             $strDiskURI = Read-Host -Prompt 'Provide the URI of the existing OS disk to attach (copy/paste from the Azure web portal)'
             $strStorageAccountName = ($strDiskURI.TrimStart("https://").Split("."))[0]
             
-            $arrAdditionalDataDisks += ,@($intLUNNumber,'Existing',$null,$strDiskName,$strStorageAccountName,$null,$strDiskURI,'attach')
+            $arrAdditionalDataDisks += ,@($intLUNNumber, `
+                                          'Existing', `
+                                          $null, `
+                                          $strDiskName, `
+                                          $strStorageAccountName, `
+                                          $null, `
+                                          $strDiskURI, `
+                                          'attach')
             $intLUNNumber++
         }
         Else
@@ -405,7 +381,14 @@ Do
             $objStorageAccount = ObjectPicker(Get-AzureRmStorageAccount)
             $strDiskURI = $objStorageAccount.PrimaryEndpoints.Blob.ToString() + "vhds/" + $strAzureVMName + "-" + $strDiskName + ".vhd"
 
-            $arrAdditionalDataDisks += ,@($intLUNNumber,'New',$intDiskSize,$strDiskName,$objStorageAccount.StorageAccountName,$objStorageAccount,$strDiskURI,'empty')
+            $arrAdditionalDataDisks += ,@($intLUNNumber, `
+                                          'New', `
+                                          $intDiskSize, `
+                                          $strDiskName, `
+                                          $objStorageAccount.StorageAccountName, `
+                                          $objStorageAccount, `
+                                          $strDiskURI, `
+                                          'empty')
             $intLUNNumber++
         }
     }
@@ -414,19 +397,21 @@ Until ($strAddAnotherDisk -ne 'y')
 
 
 # Get credentials for joining domain
-Do
+If ($strVmType -eq 'Windows')
 {
-    Write-Host ''
-    $strJoinDomain = Read-Host -Prompt 'Join this computer to a domain? (Y/N)'
+    Do
+    {
+        Write-Host ''
+        $strJoinDomain = Read-Host -Prompt 'Join this computer to a domain? (Y/N)'
+    }
+    Until ($strJoinDomain.ToLower() -eq 'y' -or $strJoinDomain.ToLower() -eq 'n')
 }
-Until ($strJoinDomain.ToLower() -eq 'y' -or $strJoinDomain.ToLower() -eq 'n')
     
 If ($strJoinDomain.ToLower() -eq 'y')
 {
     Write-Host ''
     $strWindowsDomain = Read-Host 'Please provide an Active Directory domain for the new VM'
-    $objDomainJoinCredential = Get-Credential -Message ("Please enter the password of an account with permissions to join the "+$strWindowsDomain+" domain") `
-                                              -UserName ("svc.domainjoin@"+($strWindowsDomain))
+    $objDomainJoinCredential = Get-Credential -Message ("Please enter the password of an account with permissions to join the "+$strWindowsDomain+" domain")
 }
 
 Do
@@ -593,8 +578,6 @@ If ($strCompleteProvisioning.ToLower() -eq 'y')
             $objVM = Add-AzureRmVMNetworkInterface -VM $objVM -Id $objNIC.Id
          }
     }
-
-
 
     # Mount/create OS Disk and other volumes
     If ($strUseExistingOSDisk.ToLower() -eq 'y')

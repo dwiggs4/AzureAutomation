@@ -492,7 +492,7 @@ function GetVmHostname($strVmType)
         $boolValidAzureVMName = $true
         $strAzureVMName = Read-Host -Prompt 'Please provide the name of the Azure virtual machine object'
         Get-AzureRmVM | `
-        ForEach-Object 
+        ForEach-Object `
         {
             if ($_.Name -eq $strAzureVMName)
             {
@@ -535,6 +535,7 @@ function CreateAvailabilitySet()
 
     # Prompt for input
     $strAvailabilitySetName = Read-Host -Prompt 'New availability set name'
+    Write-Host ''
     Write-Host 'Please select a resource group for the new availability set.'
     Write-Host 'The following resource groups exist in this subscription:'
     $objAvailabilitySetResourceGroup = ObjectPicker(Get-AzureRmResourceGroup)
@@ -545,8 +546,8 @@ function CreateAvailabilitySet()
     $arrRegions = 'East US','West US'
     $strAvailabilitySetLocation = StringPicker($arrRegions)
 
-    $intPlatformFaultdomainCount = Read-Host -Prompt 'Number of fault domains in this availability set (1 to 3)'
-    $intPlatformUpdatedomainCount = Read-Host -Prompt 'Number of update domains in this availability set'
+    $intPlatformFaultdomainCount = 2
+    $intPlatformUpdatedomainCount = 5
 
     # Create new availability set
     Write-Host 'Creating new availability set...'
@@ -554,7 +555,7 @@ function CreateAvailabilitySet()
                                                         -ResourceGroupName $strAvailabilitySetResourceGroupName `
                                                         -Location $strAvailabilitySetLocation `
                                                         -PlatformUpdatedomainCount $intPlatformUpdatedomainCount `
-                                                        -PlatformFaultdomainCount $intPlatformFaultdomainCount
+                                                        -PlatformFaultdomainCount $intPlatformFaultdomainCount | Out-Null
     return $objNewAvailabilitySet
 }
 

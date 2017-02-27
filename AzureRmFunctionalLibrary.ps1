@@ -505,6 +505,85 @@ function GetVmHostname($strVmType)
     return $strAzureVMName
 }
 
+<#
+.SYNOPSIS
+ToDo
+
+.DESCRIPTION
+ToDo
+
+.EXAMPLE
+ToDo
+#>
+function GetAzureSQLServerName()
+{
+    Write-Host 'The naming standard for Azure SQL Servers is as follows:'
+    Write-Host ''
+    Write-Host '        xxx' -ForegroundColor Yellow -NoNewline; Write-Host 'ASS' -ForegroundColor Magenta -NoNewline; Write-Host 'Description' -ForegroundColor Cyan
+    Write-Host ''
+    Write-Host 'Where:'
+    Write-Host '    xxx' -ForegroundColor Yellow -NoNewline; Write-Host ' = the three-character site code/unique identifier for the current Azure subscription'
+    Write-Host '    ASS' -ForegroundColor Magenta -NoNewline; Write-Host ' = the three-character code for an Azure SQL Server object'
+    Write-Host '    Description' -ForegroundColor Cyan -NoNewline; Write-Host ' = text string defining the object'
+    Write-Host ''
+    $strSqlServerName = Read-Host -Prompt 'Please provide the object name for the new Azure SQL Server'
+    return $strSqlServerName
+}
+
+<#
+.SYNOPSIS
+ToDo
+
+.DESCRIPTION
+ToDo
+
+.EXAMPLE
+ToDo
+#>
+function GetRecoveryServicesVaultName()
+{
+    Write-Host ''
+    Write-Host 'The naming standard for Azure Recovery Services Vaults is as follows:'
+    Write-Host ''
+    Write-Host '        xxx' -ForegroundColor Yellow -NoNewline; Write-Host 'RSV' -ForegroundColor Magenta -NoNewline; Write-Host 'Description' -ForegroundColor Cyan
+    Write-Host ''
+    Write-Host 'Where:'
+    Write-Host '    xxx' -ForegroundColor Yellow -NoNewline; Write-Host ' = the three-character site code/unique identifier for the current Azure subscription'
+    Write-Host '    RSV' -ForegroundColor Magenta -NoNewline; Write-Host ' = the three-character code for a Recovery Services Vault object'
+    Write-Host '    Description' -ForegroundColor Cyan -NoNewline; Write-Host ' = text string defining the object'
+    Write-Host ''
+    $strVaultName = Read-Host -Prompt 'Please provide the object name for the new Recovery Services Vault'
+    return $strVaultName
+}
+
+<#
+.SYNOPSIS
+ToDo
+
+.DESCRIPTION
+ToDo
+
+.EXAMPLE
+ToDo
+#>
+function GetAzureSQLDatabaseName()
+{
+    Write-Host ''
+    Write-Host 'The naming standard for Azure SQL Databases is as follows:'
+    Write-Host ''
+    Write-Host '        xxx' -ForegroundColor Yellow -NoNewline; Write-Host 'ASD' -ForegroundColor Magenta -NoNewline; Write-Host 'SQLServer' -ForegroundColor Green -NoNewline; Write-Host '-' -NoNewline; Write-Host 'Description' -ForegroundColor Cyan
+    Write-Host ''
+    Write-Host 'Where:'
+    Write-Host '    xxx' -ForegroundColor Yellow -NoNewline; Write-Host ' = the three-character site code/unique identifier for the current Azure subscription'
+    Write-Host '    ASD' -ForegroundColor Magenta -NoNewline; Write-Host ' = the three-character code for an Azure SQL Database object'
+    Write-Host '    SQLServer' -ForegroundColor Green -NoNewline; Write-Host ' = the Azure SQL Server that hosts the database'
+    Write-Host '    Description' -ForegroundColor Cyan -NoNewline; Write-Host ' = text string defining the object'
+    Write-Host ''
+    $strDatabaseName = Read-Host -Prompt 'Please provide the object name for the new Azure SQL Database'
+    return $strDatabaseName
+}
+
+
 
 
 <#

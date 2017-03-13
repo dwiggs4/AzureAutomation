@@ -114,6 +114,24 @@ function ObjectPicker($arrObjects)
                 $intNumber++
             }
         }
+        elseif ($arrObjects[0].GetType().Name -eq "AzureSqlServerModel")
+        {
+            # Write object list to screen
+            foreach ($objObject in $arrObjects)
+            {
+                Write-Host $intNumber":`t"$($objObject.ServerName)
+                $intNumber++
+            }
+        }
+        elseif ($arrObjects[0].GetType().Name -eq "AzureSqlElasticPoolModel")
+        {
+            # Write object list to screen
+            foreach ($objObject in $arrObjects)
+            {
+                Write-Host $intNumber":`t"$($objObject.ElasticPoolName)
+                $intNumber++
+            }
+        }
         else
         {
             # Write object list to screen
@@ -519,14 +537,18 @@ function GetAzureSQLServerName()
 {
     Write-Host 'The naming standard for Azure SQL Servers is as follows:'
     Write-Host ''
-    Write-Host '        xxx' -ForegroundColor Yellow -NoNewline; Write-Host 'ASS' -ForegroundColor Magenta -NoNewline; Write-Host 'Description' -ForegroundColor Cyan
+    Write-Host '        xxx' -ForegroundColor Yellow -NoNewline; Write-Host 'ass' -ForegroundColor Magenta -NoNewline; Write-Host 'description' -ForegroundColor Cyan
     Write-Host ''
     Write-Host 'Where:'
     Write-Host '    xxx' -ForegroundColor Yellow -NoNewline; Write-Host ' = the three-character site code/unique identifier for the current Azure subscription'
-    Write-Host '    ASS' -ForegroundColor Magenta -NoNewline; Write-Host ' = the three-character code for an Azure SQL Server object'
-    Write-Host '    Description' -ForegroundColor Cyan -NoNewline; Write-Host ' = text string defining the object'
+    Write-Host '    ass' -ForegroundColor Magenta -NoNewline; Write-Host ' = the three-character code for an Azure SQL Server object'
+    Write-Host '    description' -ForegroundColor Cyan -NoNewline; Write-Host ' = text string defining the object'
+    Write-Host ''
+    Write-Host "Note that the Azure SQL Server name can only be made up of lowercase letters 'a'-'z'," -ForegroundColor Yellow
+    Write-Host "the numbers 0-9 and the hyphen. The hyphen may not lead or trail in the name." -ForegroundColor Yellow
     Write-Host ''
     $strSqlServerName = Read-Host -Prompt 'Please provide the object name for the new Azure SQL Server'
+    $strSqlServerName = $strSqlServerName.ToLower()
     return $strSqlServerName
 }
 
@@ -636,6 +658,89 @@ function CreateAvailabilitySet()
                                                         -PlatformUpdatedomainCount $intPlatformUpdatedomainCount `
                                                         -PlatformFaultdomainCount $intPlatformFaultdomainCount | Out-Null
     return $objNewAvailabilitySet
+}
+
+<#
+.SYNOPSIS
+ToDo
+
+.DESCRIPTION
+ToDo
+
+.EXAMPLE
+ToDo
+
+Returns an array with all elastic pools in a subscription
+#>
+function Get-AzureRmSqlElasticPoolName()
+{
+    Write-Host ''
+    Write-Host 'The naming standard for Azure Elastic Pools is as follows:'
+    Write-Host ''
+    Write-Host '        xxx' -ForegroundColor Yellow -NoNewline; Write-Host 'AEP' -ForegroundColor Magenta -NoNewline; Write-Host 'Description' -ForegroundColor Cyan
+    Write-Host ''
+    Write-Host 'Where:'
+    Write-Host '    xxx' -ForegroundColor Yellow -NoNewline; Write-Host ' = the three-character site code/unique identifier for the current Azure subscription'
+    Write-Host '    RSV' -ForegroundColor Magenta -NoNewline; Write-Host ' = the three-character code for a Recovery Services Vault object'
+    Write-Host '    Description' -ForegroundColor Cyan -NoNewline; Write-Host ' = the Azure SQL Server that the Elastic Pool resides on'
+    Write-Host ''
+    $strElasticPoolName = Read-Host -Prompt 'Please provide the object name for the new Azure Elastic Pool'
+    return $strElasticPoolName
+}
+
+<#
+.SYNOPSIS
+ToDo
+
+.DESCRIPTION
+ToDo
+
+.EXAMPLE
+ToDo
+
+ToDo
+#>
+
+function Get-AzureRmSqlServers()
+{
+    $resourceGroups = Get-AzureRmResourceGroup
+    
+    foreach ($resourceGroup in $resourceGroups)
+    {
+        $resourceGroupName = $resourceGroup.ResourceGroupName
+        Write-Progress -Activity "Finding Azure SQL servers.." `
+                       -Status "Looking in resource group: $resourceGroupName" `
+                       -PercentComplete ((($resourceGroups.IndexOf($resourceGroup)) / $resourceGroups.Count) * 100)
+        $resourceGroupName = $resourceGroup.ResourceGroupName
+        [array]$sqlServers += Get-AzureRmSqlServer -ResourceGroupName $resourceGroupName
+    }
+    Write-Progress -Activity "Finding Azure SQL servers.." `
+                   -Status "Looking in resource group: $resourceGroupName" `
+                   -PercentComplete 100 `
+                   -Completed 
+    return $sqlServers
+}
+
+
+function Get-AzurermSqlElasticPools()
+{
+    $sqlServers = Get-AzureRmSqlServers
+    
+    foreach ($sqlServer in $sqlServers)
+    {
+        $serverName = $sqlServer.ServerName
+        $serverResourceGroupName = $sqlServer.ResourceGroupName
+        Write-Progress -Activity "Finding elastic pools.." `
+                       -Status "Looking in Azure SQL Server: $serverName" `
+                       -PercentComplete ((($sqlServers.IndexOf($sqlServer)) / $sqlServers.Count) * 100)
+         
+        [array]$elasticPools = Get-AzureRmSqlElasticPool -ServerName $serverName -ResourceGroupName $serverResourceGroupName
+    }
+     Write-Progress -Activity "Finding elastic pools.." `
+                    -Status "Looking in Azure SQL Server: $serverName" `
+                    -PercentComplete 100 `
+                    -Completed
+    return $elasticPools
 }
 
 <#

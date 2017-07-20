@@ -1,50 +1,107 @@
-# Include Excel Function Library
-."$PSScriptRoot\ExcelFunctionalLibrary.ps1"
+# Remove variables that may be residual in the session
+Remove-Variable * -ErrorAction Ignore
 
 # Script requires AzureRmNetwork.xlsx
 if(-not (Test-Path .\AzureRmNetwork.xlsx))
 {
-    Write-Host 'Cannot find helper networkSecurityRules.csv.'
-    Write-Host 'Please ensure the working directory includes the CSV.'
-    Write-Host 'Ending Script.'
+    (Get-Date -Format MM/dd/yyy_hh:mm:ss) + " ERROR: Cannot find helper file AzureRmNetwork.xlsx. Please ensure the working directory includes the Excel Workbook. Ending script."
     exit
 }
 
-# Test if user is logged into Azure
-try
+# Include Azure Rm Function Library
+if(Test-Path .\AzureRmFunctionalLibrary.ps1)
 {
-    Get-AzureRmContext 
-}
-catch [InvalidOperationException]
-{
-    Write-Host 'Please login to Azure.'
-    Login-AzureRmAccount | Out-Null
+    . ".\AzureRmFunctionalLibrary.ps1"
 }
 
-# Select appropriate Azure subscription
-Write-Host ''
-Write-Host 'Please select a subscription for the new VM.'
-$objSubscription = SelectAzureRmSubscription
+else 
+{
+    (Get-Date -Format MM/dd/yyy_hh:mm:ss) + " ERROR: Cannot find helper file AzureRmFunctionalLibrary.ps1. Please ensure the working directory includes the Excel Workbook. Ending script."
+    exit
+}
 
-$resourceGroups = Import-Excel -inputObject .\AzureRmNetwork.xlsx `
-                               -SheetName "Resource Groups" `
-                               -closeExcel
+# Include Excel Function Library
+if(Test-Path .\ExcelFunctionalLibrary.ps1)
+{
+    . ".\ExcelFunctionalLibrary.ps1"
+}
 
+else 
+{
+    (Get-Date -Format MM/dd/yyy_hh:mm:ss) + " ERROR: Cannot find helper file ExcelFunctionalLibrary.ps1. Please ensure the working directory includes the Excel Workbook. Ending script."
+    exit
+}
+
+# Login to Azure with a resource manager account
+Login-AzureRmAccount | Out-Null
+$account = (Get-AzureRmContext | select Account -ExpandProperty Account)
+(Get-Date -Format MM/dd/yyy_hh:mm:ss) + " INFO: Using account, $account."
+
+# Get current subscriptions 
+[array]$subscriptions = Get-AzureRmSubscription -WarningAction Ignore
+
+if ($subscriptions.Count -gt 1)
+{
+    Write-Output ''
+    Write-Output 'Please select a subscription for the network update.'
+
+    # Select appropriate Azure subscription
+    # Function SelectAzureRmSubscription included in AzureRmFunctionalLibrary
+    $subscription = SelectAzureRmSubscription
+    $subscriptionName = $subscription.Subscription.SubscriptionName
+    (Get-Date -Format MM/dd/yyy_hh:mm:ss) + " INFO: Using subscription, $subscriptionName."
+}
+
+else
+{
+    $subscriptionId = $subscriptions[0].SubscriptionId
+    $subscription = Select-AzureRmSubscription -SubscriptionId $subscriptionId
+    $subscriptionName = $subscription.Subscription.SubscriptionName
+    (Get-Date -Format MM/dd/yyy_hh:mm:ss) + " INFO: Using subscription, $subscriptionName."
+}
+
+# Get resource groups to be used
+# Import-Excel function included in AzureRmFunctionalLibrary
+[array]$resourceGroups = Import-Excel -inputObject .\AzureRmNetwork.xlsx `
+                                      -SheetName "Resource Groups" `
+                                      -closeExcel
+
+# Create listed resource groups if the object is not null
+# resourceGroups properties pulled from Import-Excel function
 if($resourceGroups -ne $null)
 {
-    Write-Host ''
-    Write-Host 'Will now create the resource group(s).'
-
-
+    Write-Output ''
+    $time = Get-Date -Format MM/dd/yyy_hh:mm:ss
+    $output = $time + " INFO: Will now create the resource group(s)."
+    Write-Output $output
+        
+    # Get current resource groups if any
+    $currentResourceGroups = Get-AzureRmResourceGroup
+    $currentResourceGroups | % {[array]$currentResourceGroupNames += $_.ResourceGroupName}
+    
     foreach ($resourceGroup in $resourceGroups)
     {
         $resourceGroupName = $resourceGroup.resourceGroupName
+        [array]$resourceGroupNames += $resourceGroupName
         Write-Progress -Activity "Creating resource groups.." `
                        -Status "Working on $resourceGroupName" `
                        -PercentComplete ((($resourceGroups.IndexOf($resourceGroup)) / $resourceGroups.Count) * 100)
     
-        New-AzureRmResourceGroup -Name $resourceGroupName `
-                                 -Location $resourceGroup.location | Out-Null
+        # Check to see if resource group already exists
+        if ($resourceGroupName -inotin $currentResourceGroupNames)
+        {
+            New-AzureRmResourceGroup -Name $resourceGroupName `
+                                     -Location $resourceGroup.location `
+                                     -Force | Out-Null
+        } 
+
+        else
+        {
+            Write-Output ''
+            $time = Get-Date -Format MM/dd/yyy_hh:mm:ss
+            $output = $time + " INFO: The resource group, $resourceGroupName, already exists."
+            Write-Output $output
+        }
 }
 
 Write-Progress -Activity "Creating resource groups.." `
@@ -55,47 +112,89 @@ Write-Progress -Activity "Creating resource groups.." `
 
 else
 {
-    Write-Host ''
-    Write-Host 'Did not find any resource groups to create.'
+    Write-Output ''
+    $time = Get-Date -Format MM/dd/yyy_hh:mm:ss
+    $output = $time + " INFO: Did not find any resource groups to create."
+    Write-Output $output
 }
 
-$storageAccounts = Import-Excel -inputObject .\AzureRmNetwork.xlsx `
-                                -SheetName "Storage Accounts" `
-                                -closeExcel
+# Reconcile what resource groups exist that were not included in the helper document AzureRmNetwork.xlsx
+$extraResourceGroups = $currentResourceGroupNames | ? {$resourceGroupNames -NotContains $_}
+
+if ($extraResourceGroups -ne $null)
+{
+    Write-Output ''
+    $time = Get-Date -Format MM/dd/yyy_hh:mm:ss
+    $output = $time + " INFO: The following resource groups were found in the subscription, but were not found in the AzureRmNetwork.xlsx document."
+    Write-Output $output
+    Write-Output ''
+    $output = $extraResourceGroups
+    Write-Output $output
+}
+
+# Get storage accounts to be used
+# Import-Excel function included in AzureRmFunctionalLibrary
+[array]$storageAccounts = Import-Excel -inputObject .\AzureRmNetwork.xlsx `
+                                       -SheetName "Storage Accounts" `
+                                       -closeExcel
+
+# Create listed storage accounts if the object is not null
+# storageAccounts properties are pulled from the Import-Excel function
+# Don't forget to enable the 'Secure transfer required' option in the azure portal to enable access
+# via HTTPS, strictly
+# As of 7/7/2017 this option is not available to set via PowerShell
 if($storageAccounts -ne $null)
 {
-    Write-Host ''
-    Write-Host 'Will now create the storage account(s).'
+    Write-Output ''
+    $time = Get-Date -Format MM/dd/yyy_hh:mm:ss
+    $output = $time + " INFO: Will now create the storage account(s)."
+    Write-Output $output
+
+    # Get current storage accounts if any
+    $currentStorageAccounts = Get-AzureRmStorageAccount
+    $currentStorageAccounts | % {[array]$currentStorageAccountNames += $_.StorageAccountName}
 
     foreach ($storageAccount in $storageAccounts)
     {
         $storageAccountName = $storageAccount.storageAccountName
+        $storageAccountNames += $storageAccountName
         Write-Progress -Activity "Creating storage accounts.." `
                        -Status "Working on $storageAccountName" `
                        -PercentComplete ((($storageAccounts.IndexOf($storageAccount)) / $storageAccounts.Count) * 100)
     
-        # If kind is like blob storage more properties are required
-        if ($storageAccount.kind -like "BlobStorage")
+        # Check to see if storage account already exists
+        if ($storageAccountName -inotin $currentStorageAccountNames)
         {
-            New-AzureRmStorageAccount -Name $storageAccount.name `
-                                      -ResourceGroupName $storageAccount.resourceGroupName `
-                                      -SkuName $storageAccount.skuName `
-                                      -Location $storageAccount.location `
-                                      -Kind $storageAccount.kind `
-                                      -AccessTier $storageAccount.accessTier `
-                                      -EnableEncryptionService $storageAccount.enableEncryptionService | Out-Null
+            # If kind is like blob storage more properties are required
+            if ($storageAccount.kind -like "BlobStorage")
+            {
+                New-AzureRmStorageAccount -Name $storageAccount.storageAccountName `
+                                          -ResourceGroupName $storageAccount.resourceGroupName `
+                                          -SkuName $storageAccount.skuName `
+                                          -Location $storageAccount.location `
+                                          -Kind $storageAccount.kind `
+                                          -AccessTier $storageAccount.accessTier `
+                                          -EnableEncryptionService $storageAccount.enableEncryptionService | Out-Null
+            }
+
+            else
+            {
+                New-AzureRmStorageAccount -Name $storageAccount.storageAccountName `
+                                          -ResourceGroupName $storageAccount.resourceGroupName `
+                                          -SkuName $storageAccount.skuName `
+                                          -Location $storageAccount.location `
+                                          -Kind $storageAccount.kind | Out-Null
+            }                              
         }
 
         else
         {
-            New-AzureRmStorageAccount -Name $storageAccount.storageAccountName `
-                                      -ResourceGroupName $storageAccount.resourceGroupName `
-                                      -SkuName $storageAccount.skuName `
-                                      -Location $storageAccount.location `
-                                      -Kind $storageAccount.kind | Out-Null
-        }                              
+            Write-Output ''
+            $time = Get-Date -Format MM/dd/yyy_hh:mm:ss
+            $output = $time + " INFO: The storage account, $storageAccountName, already exists."
+            Write-Output $output
+        }        
     }
-
     Write-Progress -Activity "Creating storage accounts.." `
                    -Status "Done" `
                    -PercentComplete 100 `
@@ -108,32 +207,74 @@ else
     Write-Host 'Did not find any storage accounts to create.'
 }
 
-$subnets = Import-Excel -inputObject .\AzureRmNetwork.xlsx `
-                        -SheetName "Subnets" `
-                        -closeExcel
+# Reconcile what storage accounts exist that were not included in the helper document AzureRmNetwork.xlsx
+$extraStorageAccounts = $stoargeAccountNames | ? {$currentStorageAccountNames -NotContains $_}
+
+if ($extraStorageAccounts -ne $null)
+{
+    Write-Output ''
+    $time = Get-Date -Format MM/dd/yyy_hh:mm:ss
+    $output = $time + " INFO: The following storage accounts were found in the subscription, but were not found in the AzureRmNetwork.xlsx document."
+    Write-Output $output
+    Write-Output ''
+    $output = $extraStorageAccounts
+    Write-Output $output
+}
+
+# Get subnets to be deployed
+# Import-Excel function included in AzureRmFunctionalLibrary
+[array]$importSubnets = Import-Excel -inputObject .\AzureRmNetwork.xlsx `
+                               -SheetName "Subnets" `
+                               -closeExcel
+
+# Possible script enhancement would be to check the syntax of the CIDR for a given subnet
+
+# Get current subnets if any
+Get-AzureRmVirtualNetwork | % {[array]$currentSubnets += $_.Subnets}
+$currentSubnets = $currentSubnets | select Name, AddressPrefix
+
+$compareSubnets = Compare-Object $currentSubnets $subnets -Property Name, AddressPrefix -IncludeEqual
+
+foreach ($subnet in $compareSubnets)
+{
+    $vnetName = $subnet.VNET
+    $subnetName = $subnet.Name
+    $sideIndicator = $subnet.SideIndicator
+    
+    if ($sideIndicator -like '==')
+    {
+        Write-Output ''
+        $time = Get-Date -Format MM/dd/yyy_hh:mm:ss
+        $output = $time + " INFO: The subnet, $subnetName, in VNET, $vnetName, already exists."
+        Write-Output $output
+    }
+
+    elseif ($sideIndicator -like '<=')
+    {
+        Write-Output ''
+        $time = Get-Date -Format MM/dd/yyy_hh:mm:ss
+        $output = $time + " INFO: The subnet, $subnetName, in VNET, $vnetName, exists but is not in the inventory of subnets in AzureRmNetwork.xlsx."
+        Write-Output $output
+    }
+}
 
 if($subnets -ne $null)
 {
-    try 
-    {
-        Add-Type -ASSEMBLY 'Microsoft.Azure.Commands.Network.Models.PSSubnet'  | out-null
-    }
-    catch 
-    {
-        # If the assembly can't be found this will load the most recent version in the GAC
-        [Reflection.Assembly]::LoadWithPartialname('Microsoft.Azure.Commands.Network.Models.PSSubnet') | Out-Null
-    }
-    
-    Write-Host ''
-    Write-Host 'Will now create the subnet(s).'
+    [Reflection.Assembly]::LoadWithPartialname('Microsoft.Azure.Commands.Network.Models.PSSubnet') | Out-Null
+        
+    Write-Output ''
+    $time = Get-Date -Format MM/dd/yyy_hh:mm:ss
+    $output = $time + " INFO: Will now create the subnet(s)."
+    Write-Output $output
   
     # Create hashtable that groups virtual networks and associated subnets
     $virtualNetworks = @{}
+
     foreach ($subnet in $subnets)
     {
         $vnetName = $subnet.VNET
-        $subnetName = $subnet.subnetName
-    
+        $subnetName = $subnet.Name
+        
         if($virtualNetworks.Keys -notcontains $subnet.VNET)
         {
             $subnetList = New-Object 'System.Collections.Generic.List[Microsoft.Azure.Commands.Network.Models.PSSubnet]'
@@ -141,8 +282,8 @@ if($subnets -ne $null)
             Write-Progress -Activity "Creating network subnets.." `
                            -Status "Working on $subnetName" `
                            -PercentComplete ((($subnets.IndexOf($subnet)) / $subnets.Count) * 100)
-            $subnetConfig = New-AzureRmVirtualNetworkSubnetConfig -Name $subnet.subnetName `
-                                                                  -AddressPrefix $subnet.CIDR
+            $subnetConfig = New-AzureRmVirtualNetworkSubnetConfig -Name $subnet.Name `
+                                                                  -AddressPrefix $subnet.AddressPrefix
             $expression = '$virtualNetworks.' + "$vnetName" + '.Add($subnetConfig)'
             Invoke-Expression $expression
         }
@@ -150,53 +291,70 @@ if($subnets -ne $null)
         else
         {
             Write-Progress -Activity "Creating network subnets.." `
-                           -Status "Working on $subnetName" `
-                           -PercentComplete ((($subnets.IndexOf($subnet)) / $subnets.Count) * 100)
-            $subnetConfig = New-AzureRmVirtualNetworkSubnetConfig -Name $subnet.subnetName `
-                                                                  -AddressPrefix $subnet.CIDR
+                            -Status "Working on $subnetName" `
+                            -PercentComplete ((($subnets.IndexOf($subnet)) / $subnets.Count) * 100)
+            $subnetConfig = New-AzureRmVirtualNetworkSubnetConfig -Name $subnet.Name `
+                                                                  -AddressPrefix $subnet.AddressPrefix
             $expression = '$virtualNetworks.' + "$vnetName" + '.Add($subnetConfig)'
             Invoke-Expression $expression
         }
     }
-
-    Write-Progress -Activity "Creating network subnets.." `
-                   -Status "Done" `
-                   -PercentComplete 100 `
-                   -Completed
+       
+Write-Progress -Activity "Creating network subnets.." `
+                -Status "Done" `
+                -PercentComplete 100 `
+                -Completed
 }
 
 else
 {
-    Write-Host ''
-    Write-Host 'Did not find any subnets to create.'
+    Write-Output ''
+    $time = Get-Date -Format MM/dd/yyy_hh:mm:ss
+    $output = $time + " INFO: Did not find any subnets to create."
+    Write-Output $output
 }
 
-$vnets = Import-Excel -inputObject .\AzureRmNetwork.xlsx `
-                      -SheetName "VNETs" `
-                      -closeExcel
+# Get VNETs to be deployed
+# Import-Excel function included in AzureRmFunctionalLibrary
+[array]$vnets = Import-Excel -inputObject .\AzureRmNetwork.xlsx `
+                             -SheetName "VNETs" `
+                             -closeExcel
 
 if($vnets -ne $null)
 {
     Write-Host ''
     Write-Host 'Will now create the VNET(s).'
 
+    # Get current VNETs if any
+    $currentVnets = Get-AzureRmVirtualNetwork
+    $currentVnets | % {[array]$vnetNames += $_.Name}
+    
     # Create virtual networks
     foreach ($vnet in $vnets)
-    {
+    {      
         $vnetName = $vnet.vnetName    
         Write-Progress -Activity "Creating virtual networks.." `
                        -Status "Working on $vnetName" `
                        -PercentComplete ((($vnets.IndexOf($vnet)) / $vnets.Count) * 100)
 
-        $expression = '$virtualNetworks.' + "$vnetName"
-        $subnetList = (Invoke-Expression $expression)
+        if ($vnetName -inotin $vnetNames)
+        {
+            $expression = '$virtualNetworks.' + "$vnetName"
+            $subnetList = (Invoke-Expression $expression)
 
-        New-AzureRmVirtualNetwork -Name $vnet.vnetName `
-                                  -ResourceGroupName $vnet.resourceGroupName `
-                                  -Location $vnet.location `
-                                  -AddressPrefix $vnet.CIDR `
-                                  -Subnet $subnetList `
-                                  -WarningAction Ignore | Out-Null    
+            New-AzureRmVirtualNetwork -Name $vnet.vnetName `
+                                      -ResourceGroupName $vnet.resourceGroupName `
+                                      -Location $vnet.location `
+                                      -AddressPrefix $vnet.CIDR `
+                                      -Subnet $subnetList `
+                                      -WarningAction Ignore | Out-Null
+        } 
+
+        else
+        {
+            Write-Output ''
+            Write-Output "The virtual network, $vnetName, already exists!"
+        }
 }
 
 Write-Progress -Activity "Creating virtual networks.." `
@@ -211,9 +369,9 @@ else
     Write-Host 'Did not find any VNETs to create.'
 }
 
-$networkSecurityRules = Import-Excel -inputObject .\AzureRmNetwork.xlsx `
-                                     -SheetName "Network Security Rules" `
-                                     -closeExcel
+[array]$networkSecurityRules = Import-Excel -inputObject .\AzureRmNetwork.xlsx `
+                                            -SheetName "Network Security Rules" `
+                                            -closeExcel
 
 if($networkSecurityRules -ne $null)
 {
@@ -507,6 +665,7 @@ else
     write-Host 'Did not find virtual gateway connections to establish site-to-site VPNs.'
 }
 
+Write-Host ''
 Write-Host 'The virtual network and sub-components have been created.'
 Write-Host 'The next step is to create any needed VMs in the environment.'
 Write-Host 'After VMs are created, NSGs can be attached to NICs and subnets.'
